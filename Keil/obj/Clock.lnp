@@ -1,0 +1,8 @@
+--cpu=Cortex-M4.fp
+".\obj\main.o"
+".\obj\system_stm32f4xx.o"
+".\obj\startup_stm32f407xx.o"
+--nodebug --strict --scatter ".\obj\Clock.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list ".\lst\Clock.map" -o .\obj\Clock.axf
