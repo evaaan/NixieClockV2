@@ -1,4 +1,5 @@
 Keil/obj/
+Keil/lst/
 Keil/DebugConfig/
 *.uvguix.*
 *.scvd
