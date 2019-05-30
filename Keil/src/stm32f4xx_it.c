@@ -59,6 +59,8 @@
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
+uint32_t tick = 0;
+uint32_t ms_counter = 0;
 
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
@@ -168,6 +170,11 @@ void PendSV_Handler(void)
 void SysTick_Handler(void)
 {
   HAL_IncTick();
+  ms_counter += 1;
+  if (ms_counter >= 1000) {
+     tick = 1;
+     ms_counter = 0;
+  }
 }
 #endif
 
