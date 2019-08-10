@@ -30,6 +30,11 @@ volatile time clock;
 GPIO_InitTypeDef GPIO_InitStruct;
 ADC_HandleTypeDef g_AdcHandle;
 
+/* RTC Handle */
+static RTC_HandleTypeDef hRTC;
+static RTC_DateTypeDef RTC_DateStruct;
+static RTC_TimeTypeDef RTC_TimeStruct;
+
 int main(void) {
   /* Initialize HAL Library. */
   HAL_Init();
@@ -98,14 +103,6 @@ void dev_loop(void) {
   }
 }
 
-void dev_loop2(void) {
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, gpio_state(0x00));
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_8, gpio_state(0x00));
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_10, gpio_state(0x00));
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, gpio_state(0x00));
-  HAL_Delay(delay_start);
-}
-
 /* Update Nixie Tubes */
 void update_display(void) {
   set_seconds(clock.seconds);
@@ -125,8 +122,6 @@ void SysTick_Handler(void)
   if (ms_counter >= 1000) {
     tick = 1;
     ms_counter = 0;
-    inc_seconds();
-    update_display();
   }
 }
 
@@ -232,6 +227,55 @@ void set_hours(uint8_t val) {
   HAL_GPIO_WritePin(GPIOE, GPIO_PIN_4, tens & 0x08);
 }
 
+void RTC_Init(void) {
+  
+  /* Set instance */
+	hRTC.Instance = RTC;
+	hRTC.Init.AsynchPrediv = 0x1F; // TM
+	hRTC.Init.SynchPrediv = 0x3FF; //TM
+	hRTC.Init.HourFormat = RTC_HOURFORMAT_12;
+	hRTC.Init.OutPut = RTC_OUTPUT_DISABLE;
+	hRTC.Init.OutPutType = RTC_OUTPUT_TYPE_PUSHPULL;
+	hRTC.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+	
+	/* Enable PWR APB1 interface clock */
+	__HAL_RCC_PWR_CLK_ENABLE();
+
+	/* Enable access to RTC Domain */
+	HAL_PWR_EnableBkUpAccess();
+	
+  /* Select the RTC clock source */
+  __HAL_RCC_RTC_CONFIG(RCC_RTCCLKSOURCE_LSE);
+  
+  /* Enable RTC clock */
+  __HAL_RCC_RTC_ENABLE();
+  
+  /* Init RTC */
+  HAL_RTC_Init(&hRTC);
+  
+  /* Set date */
+  RTC_DateStruct.Year = 0;
+  RTC_DateStruct.Month = 1;
+  RTC_DateStruct.Date = 1;
+  RTC_DateStruct.WeekDay = RTC_WEEKDAY_TUESDAY;
+
+  /* Set date */
+  HAL_RTC_SetDate(&hRTC, &RTC_DateStruct, RTC_FORMAT_BIN);
+
+  /* Set time */
+  RTC_TimeStruct.Hours = 0x00;
+  RTC_TimeStruct.Minutes = 0x00;
+  RTC_TimeStruct.Seconds = 0x00;
+  RTC_TimeStruct.TimeFormat = RTC_HOURFORMAT_12;
+  RTC_TimeStruct.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  RTC_TimeStruct.StoreOperation = RTC_STOREOPERATION_RESET;
+
+  /* Set time */
+  HAL_RTC_SetTime(&hRTC, &RTC_TimeStruct, RTC_FORMAT_BCD);
+  
+  
+  
+}
 
 void GPIO_Init(void) {
   
@@ -362,23 +406,8 @@ void GPIO_Init(void) {
   GPIO_InitStruct.Pin = GPIO_PIN_13;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct); 
   
-  
 }
 
-/* PWM bit-bang for brightness circuit testing */
-void brightness_control(void) {
-    if (HAL_ADC_PollForConversion(&g_AdcHandle, 1000000) == HAL_OK) {
-      g_ADCValue = HAL_ADC_GetValue(&g_AdcHandle);
-      g_MeasurementNumber++;
-    }
-    t_on = g_ADCValue >> 9; // Convert 0-4095 to 0-7
-    t_off = __PERIOD - t_on;
-    
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, 1);
-    HAL_Delay(t_on);
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, 0);
-    HAL_Delay(t_off);
-}
 
 static void SystemClock_Config(void)
 {
@@ -412,49 +441,3 @@ static void SystemClock_Config(void)
     __HAL_FLASH_PREFETCH_BUFFER_ENABLE();
 }
  
-void ConfigureADC(void)
-{
-  /* Based on example from https://visualgdb.com/tutorials/arm/stm32/adc/ */
-  
-  GPIO_InitTypeDef gpioInit;
-  
-  __GPIOC_CLK_ENABLE();
-  __ADC1_CLK_ENABLE();
-  
-  gpioInit.Pin = GPIO_PIN_1;
-  gpioInit.Mode = GPIO_MODE_ANALOG;
-  gpioInit.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOC, &gpioInit);
-  
-  HAL_NVIC_SetPriority(ADC_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(ADC_IRQn);
-  
-  ADC_ChannelConfTypeDef adcChannel;
-  
-  g_AdcHandle.Instance = ADC1;
-  
-  g_AdcHandle.Init.ClockPrescaler = ADC_CLOCKPRESCALER_PCLK_DIV2;
-  g_AdcHandle.Init.Resolution = ADC_RESOLUTION_12B;
-  g_AdcHandle.Init.ScanConvMode = DISABLE;
-  g_AdcHandle.Init.ContinuousConvMode = ENABLE;
-  g_AdcHandle.Init.DiscontinuousConvMode = DISABLE;
-  g_AdcHandle.Init.NbrOfDiscConversion = 0;
-  g_AdcHandle.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  g_AdcHandle.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T1_CC1;
-  g_AdcHandle.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  g_AdcHandle.Init.NbrOfConversion = 1;
-  g_AdcHandle.Init.DMAContinuousRequests = ENABLE;
-  g_AdcHandle.Init.EOCSelection = DISABLE;
-  
-  HAL_ADC_Init(&g_AdcHandle);
-  
-  adcChannel.Channel = ADC_CHANNEL_11;
-  adcChannel.Rank = 1;
-  adcChannel.SamplingTime = ADC_SAMPLETIME_480CYCLES;
-  adcChannel.Offset = 0;
-  
-  if (HAL_ADC_ConfigChannel(&g_AdcHandle, &adcChannel) != HAL_OK)
-  {
-    asm("bkpt 255");
-  }
-}
