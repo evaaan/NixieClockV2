@@ -37,14 +37,13 @@ int main(void) {
   // HAL_ADC_Start(&g_AdcHandle);
   
   /* Enable LSE Oscillator */
-  LSE_RTC_Config();
+  LSE_RTC_Init();
   
   /* Initialize Real Time Clock */
   RTC_Init();
-  
-  
-  
+    
   reset_clock();
+  
   update_display();
   
   
@@ -341,7 +340,7 @@ HAL_StatusTypeDef RTC_Init(void) {
   
 }
 
-void LSE_RTC_Config(void) {
+void LSE_RTC_Init(void) {
 	RCC_OscInitTypeDef RCC_OscInitStruct;
 	RCC_PeriphCLKInitTypeDef PeriphClkInitStruct;
 

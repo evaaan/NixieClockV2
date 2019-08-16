@@ -12,6 +12,7 @@ typedef struct {
 
 void GPIO_Init(void);
 HAL_StatusTypeDef RTC_Init(void);
+void LSE_RTC_Init(void);
 void main_loop(void);
 void dev_loop(void);
 void listen(void);
@@ -33,8 +34,11 @@ void inc_hours(void);
 void set_seconds(uint8_t);
 void set_minutes(uint8_t);
 void set_hours(uint8_t);
+void set_anniv(void);
+void reset_clock(void);
 
 uint8_t sec_pressed(void);
 uint8_t min_pressed(void);
 uint8_t hour_pressed(void);
+uint8_t anniv_pressed(void);
 
