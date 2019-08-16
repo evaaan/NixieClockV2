@@ -8,24 +8,13 @@
 #include "stm32f4xx.h"
 #include "math.h"
 
-uint16_t idx;
-uint16_t delay, delay_start, delay_inc, delay_end; 
-uint16_t delay_inc;
-uint16_t delay_end;
-uint32_t total_delay;
+uint16_t btn_delay = 200;
 uint32_t g_ADCValue = 0;
 uint32_t g_MeasurementNumber;
-uint32_t t_on = 0;
-uint32_t t_off = 0;
-uint32_t tick = 0;
 uint32_t ms_counter = 0;
-uint8_t my_val;
-#define __PERIOD 7
+uint32_t counter = 0;
 
 extern uint32_t tick;
-float freq;
-float delay_f;
-volatile time clock;
 
 GPIO_InitTypeDef GPIO_InitStruct;
 ADC_HandleTypeDef g_AdcHandle;
@@ -35,56 +24,70 @@ static RTC_HandleTypeDef hRTC;
 static RTC_DateTypeDef RTC_DateStruct;
 static RTC_TimeTypeDef RTC_TimeStruct;
 
+
+
 int main(void) {
   /* Initialize HAL Library. */
   HAL_Init();
   
-  /* Initialize GPIOs */
-  GPIO_Init();
   
   /* Initialize system clock and ADC */
   SystemClock_Config();
-  ConfigureADC();
-  HAL_ADC_Start(&g_AdcHandle);
+  // ConfigureADC();
+  // HAL_ADC_Start(&g_AdcHandle);
   
-  clock.hours = 12;
-  clock.minutes = 0;
-  clock.seconds = 0;
-  freq = 3;
-  delay_inc = 0;
-  delay_start = 1000;
-  delay_end = 1000;
+  /* Enable LSE Oscillator */
+  LSE_RTC_Config();
   
-  delay = delay_start;
+  /* Initialize Real Time Clock */
+  RTC_Init();
+  
+  
+  
+  reset_clock();
   update_display();
-  inc_seconds();
   
+  
+  /* Initialize GPIOs */
+  GPIO_Init();
   
 	while(1) {
-    // brightness_control();
-    // main_loop();
-    // dev_loop();
     listen();
-    
 	}
 }
 
 void listen(void) {
+  
+  while (anniv_pressed()) {
+    set_anniv();
+  }
+  
+  HAL_RTC_GetTime(&hRTC,  &RTC_TimeStruct, RTC_FORMAT_BIN); 
+  HAL_RTC_GetDate(&hRTC, &RTC_DateStruct, RTC_FORMAT_BIN);
+  update_display();
+  
   if (sec_pressed()) {
     inc_seconds();
     update_display();
-    HAL_Delay(200);
+    HAL_Delay(btn_delay);
   }
   if (min_pressed()) {
     inc_minutes();
     update_display();
-    HAL_Delay(200);
+    HAL_Delay(btn_delay);
   }
   if (hour_pressed()) {
     inc_hours();
     update_display();
-    HAL_Delay(200);
+    HAL_Delay(btn_delay);
   }
+}
+
+void reset_clock(void) {
+  RTC_TimeStruct.Hours = 12;
+  RTC_TimeStruct.Minutes = 0;
+  RTC_TimeStruct.Seconds = 0;
+  HAL_RTC_SetTime(&hRTC,  &RTC_TimeStruct, RTC_FORMAT_BIN);
 }
 
 /* Set all digits to the same value 0-9 */
@@ -105,9 +108,9 @@ void dev_loop(void) {
 
 /* Update Nixie Tubes */
 void update_display(void) {
-  set_seconds(clock.seconds);
-  set_minutes(clock.minutes);
-  set_hours(clock.hours);
+  set_seconds(RTC_TimeStruct.Seconds);
+  set_minutes(RTC_TimeStruct.Minutes);
+  set_hours(RTC_TimeStruct.Hours);
 }
 
 /* Convert integer to binary-coded decimal (ex: 54 to 0x54)*/
@@ -120,39 +123,44 @@ void SysTick_Handler(void)
   HAL_IncTick();
   ms_counter += 1;
   if (ms_counter >= 1000) {
-    tick = 1;
     ms_counter = 0;
+    inc_seconds();
+    update_display();
   }
 }
 
 /* Time update methods */
 void inc_seconds(void) {
-  
-  if (clock.seconds >= 59) {
-    clock.seconds = 0;
+  if (RTC_TimeStruct.Seconds >= 59) {
+    RTC_TimeStruct.Seconds = 0;
     inc_minutes();
   } else {
-    clock.seconds += 1;
+    RTC_TimeStruct.Seconds += 1;
   }
+  HAL_RTC_SetTime(&hRTC,  &RTC_TimeStruct, RTC_FORMAT_BIN);
+  
+  
 }
 
 
 void inc_minutes(void) {
-  if (clock.minutes >= 59) {
-    clock.minutes = 0;
+  if (RTC_TimeStruct.Minutes >= 59) {
+    RTC_TimeStruct.Minutes = 0;
     inc_hours();
   } else {
-    clock.minutes += 1;
+    RTC_TimeStruct.Minutes += 1;
   } 
+  HAL_RTC_SetTime(&hRTC,  &RTC_TimeStruct, RTC_FORMAT_BIN);
 }
 
 
 void inc_hours(void) {
-  if (clock.hours == 12) {
-    clock.hours = 0;
+  if (RTC_TimeStruct.Hours >= 12) {
+    RTC_TimeStruct.Hours = 1;
   } else {
-    clock.hours += 1;
+    RTC_TimeStruct.Hours += 1;
   }
+  HAL_RTC_SetTime(&hRTC,  &RTC_TimeStruct, RTC_FORMAT_BIN);
 }
 
 uint8_t sec_pressed(void) {
@@ -165,6 +173,10 @@ uint8_t min_pressed(void) {
 
 uint8_t hour_pressed(void) {
   return (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_13) == GPIO_PIN_SET);
+}
+
+uint8_t anniv_pressed(void) {
+  return (HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_13) == GPIO_PIN_SET);
 }
 
 GPIO_PinState gpio_state(uint8_t val) {
@@ -180,7 +192,6 @@ void set_seconds(uint8_t val) {
   bcd = int2bcd(val);
   ones = bcd & 0x0F;
   tens = (bcd & 0xF0) >> 4;
-  my_val = ones;
     
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, gpio_state(ones & 0x01));
   HAL_GPIO_WritePin(GPIOE, GPIO_PIN_8, gpio_state(ones & 0x02));
@@ -227,7 +238,14 @@ void set_hours(uint8_t val) {
   HAL_GPIO_WritePin(GPIOE, GPIO_PIN_4, tens & 0x08);
 }
 
-void RTC_Init(void) {
+void set_anniv(void) {
+  set_hours(8);
+  set_minutes(24);
+  set_seconds(19);
+  
+}
+
+HAL_StatusTypeDef RTC_Init(void) {
   
   /* Set instance */
 	hRTC.Instance = RTC;
@@ -253,28 +271,107 @@ void RTC_Init(void) {
   /* Init RTC */
   HAL_RTC_Init(&hRTC);
   
+  /* Disable the write protection for RTC registers */
+  //__HAL_RTC_WRITEPROTECTION_DISABLE(&hRTC);
+
+  /* Disable the Wake-up Timer */
+  //__HAL_RTC_WAKEUPTIMER_DISABLE(&hRTC);
+
+  /* In case of interrupt mode is used, the interrupt source must disabled */ 
+ // __HAL_RTC_WAKEUPTIMER_DISABLE_IT(&hRTC,RTC_IT_WUT);
+
+  /* Wait till RTC WUTWF flag is set  */
+  while(__HAL_RTC_WAKEUPTIMER_GET_FLAG(&hRTC, RTC_FLAG_WUTWF) == RESET)
+  {
+    if(counter++ == (SystemCoreClock /48U)) 
+    {
+      return HAL_ERROR;
+    }
+  }
+
+  /* Clear PWR wake up Flag */
+  //__HAL_PWR_CLEAR_FLAG(PWR_FLAG_WU);
+
+  /* Clear RTC Wake Up timer Flag */
+  //__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(&hRTC, RTC_FLAG_WUTF);
+
+  /* Configure the Wake-up Timer counter */
+  //hRTC.Instance->WUTR = (uint32_t)0U;
+
+  /* Clear the Wake-up Timer clock source bits in CR register */
+  //hRTC.Instance->CR &= (uint32_t)~RTC_CR_WUCKSEL;
+
+  /* Configure the clock source */
+  //hRTC.Instance->CR |= (uint32_t)RTC_WAKEUPCLOCK_CK_SPRE_16BITS;
+
+  /* RTC WakeUpTimer Interrupt Configuration: EXTI configuration */
+  //__HAL_RTC_WAKEUPTIMER_EXTI_ENABLE_IT();
+
+  //__HAL_RTC_WAKEUPTIMER_EXTI_ENABLE_RISING_EDGE();
+
+  /* Configure the Interrupt in the RTC_CR register */
+  //__HAL_RTC_WAKEUPTIMER_ENABLE_IT(&hRTC,RTC_IT_WUT);
+
+  /* Enable the Wake-up Timer */
+  //__HAL_RTC_WAKEUPTIMER_ENABLE(&hRTC);
+
+  /* Enable the write protection for RTC registers */
+  //__HAL_RTC_WRITEPROTECTION_ENABLE(&hRTC);
+
+  //HAL_NVIC_SetPriority(RTC_WKUP_IRQn, 2, 0U);
+  //HAL_NVIC_EnableIRQ(RTC_WKUP_IRQn); 
+  
   /* Set date */
   RTC_DateStruct.Year = 0;
   RTC_DateStruct.Month = 1;
   RTC_DateStruct.Date = 1;
   RTC_DateStruct.WeekDay = RTC_WEEKDAY_TUESDAY;
-
-  /* Set date */
+  
   HAL_RTC_SetDate(&hRTC, &RTC_DateStruct, RTC_FORMAT_BIN);
 
   /* Set time */
-  RTC_TimeStruct.Hours = 0x00;
-  RTC_TimeStruct.Minutes = 0x00;
-  RTC_TimeStruct.Seconds = 0x00;
+  RTC_TimeStruct.Hours = 12;
+  RTC_TimeStruct.Minutes = 0;
+  RTC_TimeStruct.Seconds = 0;
   RTC_TimeStruct.TimeFormat = RTC_HOURFORMAT_12;
   RTC_TimeStruct.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
   RTC_TimeStruct.StoreOperation = RTC_STOREOPERATION_RESET;
 
-  /* Set time */
-  HAL_RTC_SetTime(&hRTC, &RTC_TimeStruct, RTC_FORMAT_BCD);
+  HAL_RTC_SetTime(&hRTC, &RTC_TimeStruct, RTC_FORMAT_BIN);
   
+  return HAL_OK;
   
-  
+}
+
+void LSE_RTC_Config(void) {
+	RCC_OscInitTypeDef RCC_OscInitStruct;
+	RCC_PeriphCLKInitTypeDef PeriphClkInitStruct;
+
+	/* We are updating RTC clock */
+	PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_RTC;
+
+	/* Do not use PLL */
+	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+
+  /* LSE is used */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSE;
+  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+
+  PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
+	
+	
+	/* Config oscillator */
+	HAL_RCC_OscConfig(&RCC_OscInitStruct);
+
+	/* Select peripheral clock */
+	HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct);
+	
+	/* Enable RTC Clock */ 
+	__HAL_RCC_RTC_ENABLE(); 
+}
+
+void RTC_WKUP_IRQHandler(void) {
+  // RTC Wake-up Interrupt Handler
 }
 
 void GPIO_Init(void) {
@@ -405,6 +502,10 @@ void GPIO_Init(void) {
   /* SET_H - PB13 */
   GPIO_InitStruct.Pin = GPIO_PIN_13;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct); 
+  
+  /* SET ANNIV - PE13 */
+  GPIO_InitStruct.Pin = GPIO_PIN_13;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct); 
   
 }
 

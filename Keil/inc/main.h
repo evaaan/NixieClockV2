@@ -11,6 +11,7 @@ typedef struct {
 }time;
 
 void GPIO_Init(void);
+HAL_StatusTypeDef RTC_Init(void);
 void main_loop(void);
 void dev_loop(void);
 void listen(void);
