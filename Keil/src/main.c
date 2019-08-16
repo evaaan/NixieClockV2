@@ -502,7 +502,7 @@ void GPIO_Init(void) {
   
   /* SET ANNIV - PE13 */
   GPIO_InitStruct.Pin = GPIO_PIN_13;
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct); 
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
   
 }
 
