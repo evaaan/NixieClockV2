@@ -124,8 +124,6 @@ void SysTick_Handler(void)
   ms_counter += 1;
   if (ms_counter >= 1000) {
     ms_counter = 0;
-    inc_seconds();
-    update_display();
   }
 }
 
