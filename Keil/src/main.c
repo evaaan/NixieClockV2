@@ -13,6 +13,9 @@ uint32_t g_ADCValue = 0;
 uint32_t g_MeasurementNumber;
 uint32_t ms_counter = 0;
 uint32_t counter = 0;
+uint32_t cal_comp = 880;
+uint32_t casino_btn_delay = 1000;
+uint32_t casino_timer = 1000;
 
 extern uint32_t tick;
 
@@ -30,11 +33,8 @@ int main(void) {
   /* Initialize HAL Library. */
   HAL_Init();
   
-  
   /* Initialize system clock and ADC */
   SystemClock_Config();
-  // ConfigureADC();
-  // HAL_ADC_Start(&g_AdcHandle);
   
   /* Enable LSE Oscillator */
   LSE_RTC_Init();
@@ -43,7 +43,6 @@ int main(void) {
   RTC_Init();
     
   reset_clock();
-  
   update_display();
   
   
@@ -57,8 +56,16 @@ int main(void) {
 
 void listen(void) {
   
+  if (anniv_pressed()) {
+    while (anniv_pressed()) {
+      set_anniv();
+    }
+  }
+  
   while (anniv_pressed()) {
-    set_anniv();
+    // set_anniv();
+    HAL_RTC_SetTime(&hRTC,  &RTC_TimeStruct, RTC_FORMAT_BIN); 
+    HAL_RTC_SetDate(&hRTC, &RTC_DateStruct, RTC_FORMAT_BIN);
   }
   
   HAL_RTC_GetTime(&hRTC,  &RTC_TimeStruct, RTC_FORMAT_BIN); 
@@ -80,6 +87,24 @@ void listen(void) {
     update_display();
     HAL_Delay(btn_delay);
   }
+  
+  if ((RTC_TimeStruct.Minutes == 42) && (RTC_TimeStruct.Seconds == 42)) {
+    cal_compensation();
+  }
+}
+
+void casino(void) {
+  
+  
+}
+
+void cal_compensation(void) {
+  HAL_RTC_GetTime(&hRTC,  &RTC_TimeStruct, RTC_FORMAT_BIN);
+  HAL_RTC_GetDate(&hRTC,  &RTC_DateStruct, RTC_FORMAT_BIN);
+  RTC_TimeStruct.Seconds = RTC_TimeStruct.Seconds + 1;
+  HAL_Delay(cal_comp);
+  HAL_RTC_SetTime(&hRTC,  &RTC_TimeStruct, RTC_FORMAT_BIN);
+  HAL_RTC_SetDate(&hRTC,  &RTC_DateStruct, RTC_FORMAT_BIN);
 }
 
 void reset_clock(void) {

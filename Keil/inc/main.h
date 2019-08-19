@@ -17,6 +17,7 @@ void main_loop(void);
 void dev_loop(void);
 void listen(void);
 void ConfigureADC(void);
+void cal_compensation(void);
 void EXTI_Init(void);
 static void SystemClock_Config(void);
 
