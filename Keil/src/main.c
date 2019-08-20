@@ -58,10 +58,10 @@ void listen(void) {
   /* Poll for anniversary button */
   while (anniv_pressed()) {
     set_anniv();
-    /* Apply compensation */
+    /* Apply compensation 
     if ((RTC_TimeStruct.Minutes == 42) && (RTC_TimeStruct.Seconds == 42)) {
       cal_compensation();
-    } 
+    } */
   }
   
   /* Update display */
@@ -95,10 +95,10 @@ void listen(void) {
     }
   }
   
-  /* Apply compensation */
+  /* Apply compensation 
   if ((RTC_TimeStruct.Minutes == 42) && (RTC_TimeStruct.Seconds == 42)) {
     cal_compensation();
-  }
+  } */
 }
 
 void cal_compensation(void) {
