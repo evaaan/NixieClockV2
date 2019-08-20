@@ -8,14 +8,13 @@
 #include "stm32f4xx.h"
 #include "math.h"
 
-uint16_t btn_delay = 200;
+uint16_t btn_delay = 180;
+uint16_t debounce_delay = 20; 
 uint32_t g_ADCValue = 0;
 uint32_t g_MeasurementNumber;
 uint32_t ms_counter = 0;
 uint32_t counter = 0;
 uint32_t cal_comp = 880;
-uint32_t casino_btn_delay = 1000;
-uint32_t casino_timer = 1000;
 
 extern uint32_t tick;
 
@@ -36,18 +35,18 @@ int main(void) {
   /* Initialize system clock and ADC */
   SystemClock_Config();
   
+  /* Initialize GPIOs */
+  GPIO_Init();
+  
   /* Enable LSE Oscillator */
   LSE_RTC_Init();
   
   /* Initialize Real Time Clock */
   RTC_Init();
-    
+  
   reset_clock();
   update_display();
   
-  
-  /* Initialize GPIOs */
-  GPIO_Init();
   
 	while(1) {
     listen();
@@ -56,46 +55,50 @@ int main(void) {
 
 void listen(void) {
   
-  if (anniv_pressed()) {
-    while (anniv_pressed()) {
-      set_anniv();
-    }
-  }
-  
+  /* Poll for anniversary button */
   while (anniv_pressed()) {
-    // set_anniv();
-    HAL_RTC_SetTime(&hRTC,  &RTC_TimeStruct, RTC_FORMAT_BIN); 
-    HAL_RTC_SetDate(&hRTC, &RTC_DateStruct, RTC_FORMAT_BIN);
+    set_anniv();
+    /* Apply compensation */
+    if ((RTC_TimeStruct.Minutes == 42) && (RTC_TimeStruct.Seconds == 42)) {
+      cal_compensation();
+    } 
   }
   
+  /* Update display */
   HAL_RTC_GetTime(&hRTC,  &RTC_TimeStruct, RTC_FORMAT_BIN); 
   HAL_RTC_GetDate(&hRTC, &RTC_DateStruct, RTC_FORMAT_BIN);
   update_display();
   
+  /* Poll for time buttons */
   if (sec_pressed()) {
-    inc_seconds();
-    update_display();
-    HAL_Delay(btn_delay);
+    HAL_Delay(debounce_delay);
+    if (sec_pressed()) {
+      inc_seconds();
+      update_display();
+      HAL_Delay(btn_delay);
+    }
   }
   if (min_pressed()) {
-    inc_minutes();
-    update_display();
-    HAL_Delay(btn_delay);
+    HAL_Delay(debounce_delay);
+    if (min_pressed()) {
+      inc_minutes();
+      update_display();
+      HAL_Delay(btn_delay);
+    }
   }
   if (hour_pressed()) {
-    inc_hours();
-    update_display();
-    HAL_Delay(btn_delay);
+    HAL_Delay(debounce_delay);
+    if (hour_pressed()) {
+      inc_hours();
+      update_display();
+      HAL_Delay(btn_delay);
+    }
   }
   
+  /* Apply compensation */
   if ((RTC_TimeStruct.Minutes == 42) && (RTC_TimeStruct.Seconds == 42)) {
     cal_compensation();
   }
-}
-
-void casino(void) {
-  
-  
 }
 
 void cal_compensation(void) {
@@ -120,14 +123,6 @@ void set_all(uint8_t val) {
   set_seconds(digits);
   set_minutes(digits);
   set_hours(digits);
-}
-
-void dev_loop(void) {
-  uint8_t i;
-  for (i=0; i < 10; i++) {
-    set_all(i);
-    HAL_Delay(500);
-  }
 }
 
 /* Update Nixie Tubes */
@@ -293,15 +288,6 @@ HAL_StatusTypeDef RTC_Init(void) {
   /* Init RTC */
   HAL_RTC_Init(&hRTC);
   
-  /* Disable the write protection for RTC registers */
-  //__HAL_RTC_WRITEPROTECTION_DISABLE(&hRTC);
-
-  /* Disable the Wake-up Timer */
-  //__HAL_RTC_WAKEUPTIMER_DISABLE(&hRTC);
-
-  /* In case of interrupt mode is used, the interrupt source must disabled */ 
- // __HAL_RTC_WAKEUPTIMER_DISABLE_IT(&hRTC,RTC_IT_WUT);
-
   /* Wait till RTC WUTWF flag is set  */
   while(__HAL_RTC_WAKEUPTIMER_GET_FLAG(&hRTC, RTC_FLAG_WUTWF) == RESET)
   {
@@ -310,39 +296,7 @@ HAL_StatusTypeDef RTC_Init(void) {
       return HAL_ERROR;
     }
   }
-
-  /* Clear PWR wake up Flag */
-  //__HAL_PWR_CLEAR_FLAG(PWR_FLAG_WU);
-
-  /* Clear RTC Wake Up timer Flag */
-  //__HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(&hRTC, RTC_FLAG_WUTF);
-
-  /* Configure the Wake-up Timer counter */
-  //hRTC.Instance->WUTR = (uint32_t)0U;
-
-  /* Clear the Wake-up Timer clock source bits in CR register */
-  //hRTC.Instance->CR &= (uint32_t)~RTC_CR_WUCKSEL;
-
-  /* Configure the clock source */
-  //hRTC.Instance->CR |= (uint32_t)RTC_WAKEUPCLOCK_CK_SPRE_16BITS;
-
-  /* RTC WakeUpTimer Interrupt Configuration: EXTI configuration */
-  //__HAL_RTC_WAKEUPTIMER_EXTI_ENABLE_IT();
-
-  //__HAL_RTC_WAKEUPTIMER_EXTI_ENABLE_RISING_EDGE();
-
-  /* Configure the Interrupt in the RTC_CR register */
-  //__HAL_RTC_WAKEUPTIMER_ENABLE_IT(&hRTC,RTC_IT_WUT);
-
-  /* Enable the Wake-up Timer */
-  //__HAL_RTC_WAKEUPTIMER_ENABLE(&hRTC);
-
-  /* Enable the write protection for RTC registers */
-  //__HAL_RTC_WRITEPROTECTION_ENABLE(&hRTC);
-
-  //HAL_NVIC_SetPriority(RTC_WKUP_IRQn, 2, 0U);
-  //HAL_NVIC_EnableIRQ(RTC_WKUP_IRQn); 
-  
+ 
   /* Set date */
   RTC_DateStruct.Year = 0;
   RTC_DateStruct.Month = 1;
@@ -380,7 +334,6 @@ void LSE_RTC_Init(void) {
   RCC_OscInitStruct.LSEState = RCC_LSE_ON;
 
   PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
-	
 	
 	/* Config oscillator */
 	HAL_RCC_OscConfig(&RCC_OscInitStruct);
@@ -563,4 +516,4 @@ static void SystemClock_Config(void)
   if (HAL_GetREVID() == 0x1001)
     __HAL_FLASH_PREFETCH_BUFFER_ENABLE();
 }
- 
+

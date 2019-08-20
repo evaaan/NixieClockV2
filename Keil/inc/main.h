@@ -14,7 +14,6 @@ void GPIO_Init(void);
 HAL_StatusTypeDef RTC_Init(void);
 void LSE_RTC_Init(void);
 void main_loop(void);
-void dev_loop(void);
 void listen(void);
 void ConfigureADC(void);
 void cal_compensation(void);
@@ -23,7 +22,6 @@ static void SystemClock_Config(void);
 
 
 GPIO_PinState gpio_state(uint8_t);
-void brightness_control(void);
 void update_display(void);
 void HAL_IncTick(void);
 uint8_t int2bcd(uint8_t);
@@ -36,6 +34,7 @@ void set_seconds(uint8_t);
 void set_minutes(uint8_t);
 void set_hours(uint8_t);
 void set_anniv(void);
+void set_all(uint8_t);
 void reset_clock(void);
 
 uint8_t sec_pressed(void);
